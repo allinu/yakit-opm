@@ -5,13 +5,13 @@ concurrency:
   cancel-in-progress: true
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [master]
     paths:
-      - '__tests__/**'
-      - 'app/renderer/src/main/src/**'
+      - 'app/renderer/src/main/src/__tests__'
       - 'app/renderer/engine-link-startup/src/__tests__'
-      - 'app/**/src/**/__tests__/**'
+      - 'app/main/__tests__'
 
 jobs:
   vitest:
@@ -67,6 +67,13 @@ jobs:
           # may have a shallow checkout and referenced commits might not exist.
           CHANGED=""
 
+          # If manually triggered with inputs.tests, prefer that and exit early
+          if [ -n "${{ github.event.inputs.tests }}" ]; then
+            echo "Using manual input tests: ${{ github.event.inputs.tests }}"
+            echo "tests=${{ github.event.inputs.tests }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           # 1) Try the standard range if both commits are present
           if git rev-parse --verify "${{ github.event.before }}" >/dev/null 2>&1 && git rev-parse --verify "${{ github.sha }}" >/dev/null 2>&1; then
             CHANGED=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" || true)
@@ -103,12 +110,38 @@ jobs:
             exit 0
           fi
 
-          # Otherwise, map changed source dirs to test globs
+          # Otherwise, for each changed file/dir try to find nearby __tests__ folders
+          # and only run tests that actually exist. This avoids running tests when
+          # none were written for the changed code.
           DIRS=$(printf "%s\n" "$CHANGED_REL" | xargs -I{} dirname {} 2>/dev/null | sort -u || true)
+          TEST_PATTERNS=()
           if [ -n "$DIRS" ]; then
-            PATTERNS=$(printf "%s\n" "$DIRS" | awk '{print $0"/**/*.test.* "$0"/**/*.spec.*"}' | tr '\n' ' ')
-            echo "Derived patterns: $PATTERNS"
-            echo "tests=$PATTERNS" >> $GITHUB_OUTPUT
+            # enable globstar for ** expansion
+            shopt -s globstar nullglob || true
+            for d in $DIRS; do
+              # candidate test directories relative to changed dir
+              candidates=("$d/__tests__" "$d/src/__tests__")
+              # also consider mapping src/** -> src/__tests__
+              if [[ "$d" == *"/src"* ]]; then
+                base=${d%%/src*}
+                candidates+=("$base/src/__tests__")
+              fi
+              for c in "${candidates[@]}"; do
+                # look for test files under candidate
+                found=( $c/**/*.test.* $c/**/*.spec.* )
+                if [ ${#found[@]} -gt 0 ]; then
+                  # add glob pattern for this candidate
+                  TEST_PATTERNS+=("$c/**/*.test.*" "$c/**/*.spec.*")
+                fi
+              done
+            done
+          fi
+
+          if [ ${#TEST_PATTERNS[@]} -gt 0 ]; then
+            # dedupe and join
+            patterns=$(printf "%s\n" "${TEST_PATTERNS[@]}" | sort -u | tr '\n' ' ')
+            echo "Discovered test patterns: $patterns"
+            echo "tests=$patterns" >> $GITHUB_OUTPUT
             exit 0
           fi
 

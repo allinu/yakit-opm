@@ -22,20 +22,14 @@ export default defineConfig({
         // include tests in common locations (root and package-specific __tests__),
         // and preserve previous src-based test globs
         include: [
-            // tests placed at repository root under `__tests__`
-            "__tests__/**/*.test.{ts,tsx,js,jsx}",
-            "__tests__/**/*.spec.{ts,tsx,js,jsx}",
             // tests under specific package-level __tests__ folders
             "app/renderer/src/main/src/__tests__/**/*.test.{ts,tsx,js,jsx}",
             "app/renderer/src/main/src/__tests__/**/*.spec.{ts,tsx,js,jsx}",
             "app/renderer/engine-link-startup/src/__tests__/**/*.test.{ts,tsx,js,jsx}",
             "app/renderer/engine-link-startup/src/__tests__/**/*.spec.{ts,tsx,js,jsx}",
-            // fallback: any __tests__ anywhere under app
-            "app/**/__tests__/**/*.test.{ts,tsx,js,jsx}",
-            "app/**/__tests__/**/*.spec.{ts,tsx,js,jsx}",
             // original renderer src patterns
-            "app/**/src/**/*.test.{ts,tsx,js,jsx}",
-            "app/**/src/**/*.spec.{ts,tsx,js,jsx}"
+            "app/main/__tests__/**/*.test.{ts,tsx,js,jsx}",
+            "app/main/__tests__/**/*.spec.{ts,tsx,js,jsx}"
         ],
         // keep JUnit reporter and default reporter
         reporters: [["junit", {outputFile: "reports/junit.xml"}] as unknown as any, "default"],

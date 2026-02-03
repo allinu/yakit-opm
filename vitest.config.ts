@@ -8,7 +8,7 @@ export default defineConfig({
             "@": path.resolve(__dirname, "app/renderer/src/main/src"),
             // explicit aliases for multiple packages under `app`
             "@renderer": path.resolve(__dirname, "app/renderer/src/main/src"),
-            "@engine": path.resolve(__dirname, "app/renderer/engine-link-startup/src"),
+            "@engne": path.resolve(__dirname, "app/renderer/engine-link-startup/src"),
             "@app": path.resolve(__dirname, "app")
         }
     },

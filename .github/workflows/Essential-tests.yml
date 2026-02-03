@@ -9,9 +9,9 @@ on:
   pull_request:
     branches: [master]
     paths:
-      - 'app/renderer/src/main/src/__tests__'
-      - 'app/renderer/engine-link-startup/src/__tests__'
-      - 'app/main/__tests__'
+      - 'app/renderer/src/main/src'
+      - 'app/renderer/engine-link-startup/src'
+      - 'app/main'
 
 jobs:
   vitest:

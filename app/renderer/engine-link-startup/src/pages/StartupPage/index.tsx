@@ -645,16 +645,7 @@ export const StartupPage: React.FC = () => {
 
     // 数据库修复
     const [dbPath, setDbPath] = useState<string[]>([])
-    const latestFixDBCallIdRef = useRef(0)
     const handleFixupDatabase = useMemoizedFn(async () => {
-        const callId = ++latestFixDBCallIdRef.current
-        // 中断连接 后续不执行
-        if (breakHandleRef.current) {
-            debugToPrintLog(`------ 开始修复数据库 被阻止 ------`)
-            setCheckLog([])
-            return
-        }
-
         setCheckLog(["开始修复数据库中..."])
         try {
             const res = await grpcFixupDatabase({softwareVersion: FetchSoftwareVersion()})
@@ -677,17 +668,10 @@ export const StartupPage: React.FC = () => {
                     safeSetYakitStatus("fix_database_error")
             }
         } catch (error) {
-            // 旧调用直接跳过
-            if (callId !== latestFixDBCallIdRef.current) return
             // 如果意外情况则按照修复失败处理
-            if (!breakHandleRef.current) {
-                outputToWelcomeConsole(`修复数据库出现意外情况：${error}`)
-                setCheckLog(["修复数据库出现意外情况，可查看日志详细信息..."])
-                safeSetYakitStatus("fix_database_error")
-            } else {
-                setCheckLog(["已主动断开, 请点击手动连接引擎"])
-                safeSetYakitStatus("break")
-            }
+            outputToWelcomeConsole(`修复数据库出现意外情况：${error}`)
+            setCheckLog(["修复数据库出现意外情况，可查看日志详细信息..."])
+            safeSetYakitStatus("fix_database_error")
         }
     })
 

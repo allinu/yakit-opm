@@ -1,4 +1,4 @@
-import React, {ReactNode, useEffect, useMemo, useRef, useState} from "react"
+import React, {useEffect, useMemo, useRef, useState} from "react"
 import {
     QueryRisksRequest,
     QueryRisksResponse,
@@ -11,7 +11,7 @@ import {
 } from "./YakitRiskTableType"
 import styles from "./YakitRiskTable.module.scss"
 import {TableVirtualResize} from "@/components/TableVirtualResize/TableVirtualResize"
-import {Risk} from "../schema"
+import {PacketPair, Risk} from "../schema"
 import {Badge, CollapseProps, Descriptions, Divider, Form, Tooltip} from "antd"
 import {YakScript, genDefaultPagination} from "@/pages/invoker/schema"
 import {YakitPopconfirm} from "@/components/yakitUI/YakitPopconfirm/YakitPopconfirm"
@@ -28,6 +28,9 @@ import {
 import {YakitMenuItemProps} from "@/components/yakitUI/YakitMenu/YakitMenu"
 import {
     OutlineChevrondownIcon,
+    OutlineChevronleftIcon,
+    OutlineChevronrightIcon,
+    OutlineClockIcon,
     OutlineExportIcon,
     OutlineEyeIcon,
     OutlineOpenIcon,
@@ -41,7 +44,6 @@ import {
 import {ColumnsTypeProps, SortProps} from "@/components/TableVirtualResize/TableVirtualResizeType"
 import cloneDeep from "lodash/cloneDeep"
 import {formatTimestamp} from "@/utils/timeUtil"
-import {SolidRefreshIcon} from "@/assets/icon/solid"
 import {YakitRadioButtons} from "@/components/yakitUI/YakitRadioButtons/YakitRadioButtons"
 import {YakitInput} from "@/components/yakitUI/YakitInput/YakitInput"
 import {YakitDropdownMenu} from "@/components/yakitUI/YakitDropdownMenu/YakitDropdownMenu"
@@ -102,7 +104,6 @@ import {YakitEditor} from "@/components/yakitUI/YakitEditor/YakitEditor"
 import {loadAuditFromYakURLRaw} from "@/pages/yakRunnerAuditCode/utils"
 import {AuditEmiterYakUrlProps, OpenFileByPathProps} from "@/pages/yakRunnerAuditCode/YakRunnerAuditCodeType"
 import {CollapseList} from "@/pages/yakRunner/CollapseList/CollapseList"
-import {addToTab} from "@/pages/MainTabs"
 import {YakCodemirror} from "@/components/yakCodemirror/YakCodemirror"
 import {YakitSpin} from "@/components/yakitUI/YakitSpin/YakitSpin"
 import {SSARisk} from "@/pages/yakRunnerAuditHole/YakitAuditHoleTable/YakitAuditHoleTableType"
@@ -110,7 +111,7 @@ import {getRemoteValue} from "@/utils/kv"
 import {NoPromptHint} from "@/pages/pluginHub/utilsUI/UtilsTemplate"
 import {RemoteRiskGV} from "@/enums/risk"
 import {useStore} from "@/store"
-import {minWinSendToChildWin, openPacketNewWindow, openRiskNewWindow} from "@/utils/openWebsite"
+import {minWinSendToChildWin, openRiskNewWindow} from "@/utils/openWebsite"
 import {CodeRangeProps} from "@/pages/yakRunnerAuditCode/RightAuditDetail/RightAuditDetail"
 import {JumpToAuditEditorProps} from "@/pages/yakRunnerAuditCode/BottomEditorDetails/BottomEditorDetailsType"
 import {Selection} from "@/pages/yakRunnerAuditCode/RunnerTabs/RunnerTabsType"
@@ -1602,23 +1603,16 @@ export const YakitRiskDetails: React.FC<YakitRiskDetailsProps> = React.memo((pro
         detailClassName = ""
     } = props
     const {t, i18n} = useI18nNamespaces(["risk", "yakitUi"])
-    // 目前可展示的请求和响应类型
-    const [currentShowType, setCurrentShowType] = useState<("request" | "response")[]>([])
     const [isShowCode, setIsShowCode] = useState<boolean>(true)
     const descriptionsRef = useRef<HTMLDivElement>(null)
     const descriptionsDivWidth = useListenWidth(descriptionsRef)
+    const [historyIndex, setHistoryIndex] = useState<number>(0)
 
     useEffect(() => {
         const isRequestString = !!requestString(info)
         const isResponseString = !!responseString(info)
-        let showType: ("request" | "response")[] = []
-        if (isRequestString) {
-            showType.push("request")
-        } else if (isResponseString) {
-            showType.push("response")
-        }
-        setCurrentShowType(showType)
         if (isRequestString || isResponseString) {
+            setHistoryIndex(0)
             setIsShowCode(true)
         } else {
             setIsShowCode(false)
@@ -1639,32 +1633,96 @@ export const YakitRiskDetails: React.FC<YakitRiskDetailsProps> = React.memo((pro
     }, [descriptionsDivWidth])
 
     const codeNode = useMemoizedFn((isRequest: boolean) => {
-        const isHttps = !!info.Url && info.Url?.length > 0 && info.Url.includes("https")
+        const historyArr: PacketPair[] = [
+            {
+                Request: info.Request,
+                Response: info.Response
+            }
+        ]
+        info?.PacketPairs?.forEach((item) => {
+            historyArr.push(item)
+        })
+
+        // TODO defaultHttps、url、downbodyParams
         const extraParams = {
-            originValue: isRequest ? requestString(info) : responseString(info),
-            originalPackage: isRequest ? info.Request : info.Response,
-            webFuzzerValue: isRequest ? "" : requestString(info)
+            originValue: isRequest ? requestString(historyArr[historyIndex]) : responseString(historyArr[historyIndex]),
+            originalPackage: isRequest ? historyArr[historyIndex]?.Request : historyArr[historyIndex]?.Response,
+            webFuzzerValue: isRequest ? "" : requestString(historyArr[historyIndex]),
+            defaultHttps: !!info.Url && info.Url?.length > 0 && info.Url.includes("https"),
+            url: info.Url || "",
+            downbodyParams: {IsRisk: true, Id: info.Id, IsRequest: isRequest}
         }
         return (
             <NewHTTPPacketEditor
-                defaultHttps={isHttps}
-                url={info.Url || ""}
                 readOnly={true}
                 isShowBeautifyRender={true}
                 bordered={true}
                 isResponse={!isRequest}
-                downbodyParams={{IsRisk: true, Id: info.Id, IsRequest: isRequest}}
+                title={
+                    <div>
+                        {isRequest ? (
+                            <div className={styles["content-resize-first-heard"]}>
+                                <span>Request</span>
+                                <Tooltip title={t("YakitRiskDetails.prev")} align={{targetOffset: [0, -10]}}>
+                                    <YakitButton
+                                        type='text'
+                                        disabled={historyIndex <= 0}
+                                        icon={<OutlineChevronleftIcon />}
+                                        onClick={() => {
+                                            setHistoryIndex((prev) => prev - 1)
+                                        }}
+                                    ></YakitButton>
+                                </Tooltip>
+                                <Tooltip title={t("YakitRiskDetails.next")} align={{targetOffset: [0, -10]}}>
+                                    <YakitButton
+                                        type='text'
+                                        disabled={historyIndex + 1 === historyArr.length}
+                                        icon={<OutlineChevronrightIcon />}
+                                        onClick={() => {
+                                            setHistoryIndex((prev) => prev + 1)
+                                        }}
+                                    ></YakitButton>
+                                </Tooltip>
+                                {/* TODO url未展示 */}
+                                <YakitDropdownMenu
+                                    menu={{
+                                        data: historyArr.map((item, index) => {
+                                            if (index === 0) {
+                                                return {
+                                                    key: index + "",
+                                                    label: (
+                                                        <>
+                                                            <YakitTag color='warning' size='small' border={false}>
+                                                                {t("YakitRiskDetails.originReq")}
+                                                            </YakitTag>
+                                                        </>
+                                                    )
+                                                }
+                                            }
+                                            return {
+                                                key: index + "",
+                                                label: <>{index}</>
+                                            }
+                                        }),
+                                        onClick: ({key}) => {
+                                            setHistoryIndex(Number(key))
+                                        }
+                                    }}
+                                    dropdown={{
+                                        trigger: ["click"],
+                                        placement: "bottomLeft"
+                                    }}
+                                >
+                                    <YakitButton type='text' icon={<OutlineClockIcon />}></YakitButton>
+                                </YakitDropdownMenu>
+                            </div>
+                        ) : (
+                            <span>Response</span>
+                        )}
+                    </div>
+                }
                 onClickOpenPacketNewWindowMenu={() => {
-                    openPacketNewWindow({
-                        request: {
-                            originValue: requestString(info),
-                            originalPackage: info.Request
-                        },
-                        response: {
-                            originValue: responseString(info),
-                            originalPackage: info.Response
-                        }
-                    })
+                    openRiskNewWindow(info)
                 }}
                 {...extraParams}
             />
@@ -1706,22 +1764,8 @@ export const YakitRiskDetails: React.FC<YakitRiskDetailsProps> = React.memo((pro
             lineStyle: {height: "auto"},
             firstNodeStyle: {height: "auto"}
         }
-        if (currentShowType.length === 0 && currentShowType.includes("request")) {
-            p.firstRatio = "100%"
-            p.secondRatio = "0%"
-            p.lineStyle = {display: "none"}
-            p.firstNodeStyle = {padding: 0}
-            p.secondNodeStyle = {display: "none"}
-        }
-        if (currentShowType.length === 0 && currentShowType.includes("response")) {
-            p.firstRatio = "0%"
-            p.secondRatio = "100%"
-            p.lineStyle = {display: "none"}
-            p.firstNodeStyle = {display: "none"}
-            p.secondNodeStyle = {padding: 0}
-        }
         return p
-    }, [currentShowType])
+    }, [])
     return (
         <>
             <div

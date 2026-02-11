@@ -1,3 +1,7 @@
+export interface PacketPair {
+    Request?: Uint8Array
+    Response?: Uint8Array
+}
 export interface Risk {
     Hash: string
     IP: string
@@ -45,4 +49,7 @@ export interface Risk {
     ResultID?: number
     SyntaxFlowVariable?: string
     ProgramName?: string
+
+    // 关联的请求/响应报文对列表
+    PacketPairs?: PacketPair[]
 }
